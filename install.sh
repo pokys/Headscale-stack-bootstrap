@@ -19,6 +19,12 @@ headscale_exec() {
   docker exec headscale headscale --config "${HEADSCALE_CONFIG_PATH}" "$@"
 }
 
+get_headscale_user_id() {
+  headscale_exec users list --output json \
+    | jq -r --arg user "${HEADSCALE_USER}" '.[] | select(.name == $user) | .id' \
+    | head -n1
+}
+
 usage() {
   echo "Usage: sudo ./install.sh [control|router]"
 }
@@ -61,7 +67,7 @@ load_env() {
 install_base_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y curl ca-certificates gnupg lsb-release ethtool openssl
+  apt-get install -y curl ca-certificates gnupg jq lsb-release ethtool openssl
 }
 
 install_docker() {
@@ -197,8 +203,15 @@ wait_for_headscale() {
 
 create_headscale_assets() {
   local api_key
+  local user_id
 
   headscale_exec users create "${HEADSCALE_USER}" >/dev/null 2>&1 || true
+  user_id="$(get_headscale_user_id)"
+
+  if [ -z "${user_id}" ] || [ "${user_id}" = "null" ]; then
+    echo "Unable to resolve Headscale user ID for ${HEADSCALE_USER}."
+    exit 1
+  fi
 
   if [ ! -s /root/headscale_api_key.txt ]; then
     headscale_exec apikeys create \
@@ -215,7 +228,7 @@ create_headscale_assets() {
 
   if [ ! -s /root/headscale_auth_key.txt ]; then
     headscale_exec preauthkeys create \
-      --user "${HEADSCALE_USER}" \
+      --user "${user_id}" \
       --reusable \
       --expiration 720h \
       | awk 'NF { line = $0 } END { print line }' \
