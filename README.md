@@ -22,6 +22,7 @@ Dalsi uzitecne promenne:
 - `HEADSCALE_USER`
 - `TAILNET_DOMAIN`
 - `DOCKGE_PORT`
+- `HEADPLANE_HEADSCALE_URL_MODE`
 - `TAILSCALE_AUTH_KEY`
 - `ROUTER_HOSTNAME`
 - `ROUTER_ADVERTISE_ROUTES`
@@ -45,6 +46,15 @@ sudo ./install.sh router
 ```
 
 Pokud neni vyplnene `TAILSCALE_AUTH_KEY`, skript po instalaci routeru vypise presny `tailscale up` prikaz pro rucni pripojeni.
+
+`HEADPLANE_HEADSCALE_URL_MODE` ridi, jakou URL bude Headplane pouzivat pro Headscale:
+
+- `internal`
+  bezpecny default, Headplane pouziva `http://headscale:8080`
+- `public`
+  Headplane pouziva `https://VPN_DOMAIN`, takze v GUI generuje verejnou adresu pro `tailscale up`
+
+`public` pouzij jen pokud kontejner `headplane` spolehlive dosahne na `https://VPN_DOMAIN`.
 
 Ukazkovy rucni prikaz pro router:
 
