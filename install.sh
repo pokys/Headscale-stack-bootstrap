@@ -108,6 +108,13 @@ replace_indented_value() {
   sed -i "s|^${indent}- .*|${indent}- ${value}|" "${file}"
 }
 
+replace_first_match() {
+  local file="$1"
+  local pattern="$2"
+  local replacement="$3"
+  sed -i "0,/${pattern}/s||${replacement}|" "${file}"
+}
+
 configure_control_stack() {
   local headscale_cfg="${STACK_DST_DIR}/config/headscale/config.yaml"
   local headplane_cfg="${STACK_DST_DIR}/config/headplane/config.yaml"
@@ -118,8 +125,8 @@ configure_control_stack() {
 
   replace_yaml_value "${headscale_cfg}" "server_url" "https://${VPN_DOMAIN}"
   replace_yaml_value "${headscale_cfg}" "  base_domain" "${TAILNET_DOMAIN}"
-  replace_indented_value "${headscale_cfg}" "      " "${AD_DNS_SERVER}"
-  replace_indented_value "${headscale_cfg}" "    " "${AD_DOMAIN}"
+  replace_first_match "${headscale_cfg}" "^      - .*" "      - ${AD_DNS_SERVER}"
+  replace_first_match "${headscale_cfg}" "^    - .*" "    - ${AD_DOMAIN}"
 
   replace_yaml_value "${headplane_cfg}" "  cookie_secret" "${cookie_secret}"
 
