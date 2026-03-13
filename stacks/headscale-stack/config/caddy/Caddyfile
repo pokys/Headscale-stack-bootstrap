@@ -1,0 +1,5 @@
+vpn.example.com {
+
+ reverse_proxy headplane:3000
+
+}
