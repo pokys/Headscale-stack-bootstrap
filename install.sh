@@ -9,9 +9,14 @@ STACK_SRC_DIR="${SCRIPT_DIR}/stacks/headscale-stack"
 STACK_DST_DIR="/opt/stacks/headscale-stack"
 DOCKGE_DIR="/opt/dockge"
 STACK_ENV_FILE="${STACK_DST_DIR}/.env"
+HEADSCALE_CONFIG_PATH="/etc/headscale/config.yaml"
 
 log() {
   printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"
+}
+
+headscale_exec() {
+  docker exec headscale headscale --config "${HEADSCALE_CONFIG_PATH}" "$@"
 }
 
 usage() {
@@ -173,7 +178,7 @@ deploy_control_stack() {
 wait_for_headscale() {
   local retries=20
 
-  until docker exec headscale headscale users list >/dev/null 2>&1; do
+  until headscale_exec users list >/dev/null 2>&1; do
     retries=$((retries - 1))
     if [ "${retries}" -le 0 ]; then
       echo "Headscale did not become ready in time."
@@ -186,10 +191,10 @@ wait_for_headscale() {
 create_headscale_assets() {
   local api_key
 
-  docker exec headscale headscale users create "${HEADSCALE_USER}" >/dev/null 2>&1 || true
+  headscale_exec users create "${HEADSCALE_USER}" >/dev/null 2>&1 || true
 
   if [ ! -s /root/headscale_api_key.txt ]; then
-    docker exec headscale headscale apikeys create \
+    headscale_exec apikeys create \
       | awk 'NF { line = $0 } END { print line }' \
       > /root/headscale_api_key.txt
   fi
@@ -202,8 +207,7 @@ create_headscale_assets() {
   )
 
   if [ ! -s /root/headscale_auth_key.txt ]; then
-    docker exec headscale \
-      headscale preauthkeys create \
+    headscale_exec preauthkeys create \
       --user "${HEADSCALE_USER}" \
       --reusable \
       --expiration 720h \
