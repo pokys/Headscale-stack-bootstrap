@@ -114,6 +114,7 @@ Po `control` instalaci:
 - `/root/headscale_api_key.txt` existuje a neni prazdny
 - `/root/headscale_auth_key.txt` existuje a neni prazdny
 - `/opt/stacks/headscale-stack/data/headscale/noise_private.key` existuje
+- `/opt/stacks/headscale-stack/.env` obsahuje `ROOT_API_KEY=...`
 
 Po `router` instalaci:
 
@@ -130,4 +131,6 @@ Po `router` instalaci:
 - Headscale API: `https://VPN_DOMAIN`
 - API key: `/root/headscale_api_key.txt`
 - Auth key: `/root/headscale_auth_key.txt`
+- Noise key: `/opt/stacks/headscale-stack/data/headscale/noise_private.key`
+- Headplane `ROOT_API_KEY`: `/opt/stacks/headscale-stack/.env`
 - Shrnuti instalace: `/root/headscale-bootstrap.txt`
