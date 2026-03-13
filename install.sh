@@ -67,7 +67,7 @@ load_env() {
 install_base_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y curl ca-certificates gnupg jq lsb-release ethtool openssl
+  apt-get install -y curl ca-certificates gnupg jq lsb-release ethtool openssl procps
 }
 
 install_docker() {
