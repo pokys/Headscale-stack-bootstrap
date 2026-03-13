@@ -266,6 +266,20 @@ Dockge URL: http://$(hostname -I | awk '{print $1}'):${DOCKGE_PORT}
 Headplane URL: https://${VPN_DOMAIN}/admin
 Headscale API key: /root/headscale_api_key.txt
 Headscale auth key: /root/headscale_auth_key.txt
+Headscale noise key: ${STACK_DST_DIR}/data/headscale/noise_private.key
+Headplane env file: ${STACK_ENV_FILE}
+EOF
+}
+
+print_control_summary() {
+  cat <<EOF
+
+Generated artifacts:
+- Headscale API key: /root/headscale_api_key.txt
+- Headscale auth key: /root/headscale_auth_key.txt
+- Headscale noise key: ${STACK_DST_DIR}/data/headscale/noise_private.key
+- Headplane env with ROOT_API_KEY: ${STACK_ENV_FILE}
+- Deployment summary: /root/headscale-bootstrap.txt
 EOF
 }
 
@@ -278,6 +292,7 @@ install_control() {
   create_headscale_assets
   write_control_summary
   log "Headscale control node is ready"
+  print_control_summary
 }
 
 install_tailscale() {
