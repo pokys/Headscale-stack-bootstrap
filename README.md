@@ -63,6 +63,22 @@ Pouzij ho hlavne kdyz:
 - chces router prihlasit rucne az po oprave site
 - potrebujes znovu spustit `tailscale up` bez celeho bootstrapu
 
+Ukazkovy rucni prikaz pro pridani bezneho PC:
+
+```bash
+tailscale up \
+  --login-server https://VPN_DOMAIN \
+  --auth-key AUTH_KEY \
+  --hostname PC_HOSTNAME \
+  --accept-dns=true
+```
+
+Pouzij ho hlavne kdyz:
+
+- chces rucne pripojit Windows, Linux nebo macOS klienta
+- potrebujes otestovat novy auth key mimo bootstrap
+- nechces na klientovi zadavat subnet route parametry
+
 ## Doporuceny postup test deploye
 
 1. Priprav cisty Debian 13 server pro control node.
