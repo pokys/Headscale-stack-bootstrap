@@ -291,6 +291,26 @@ Generated artifacts:
 EOF
 }
 
+print_router_summary() {
+  local exit_node_status="disabled"
+
+  if [ "${ROUTER_ADVERTISE_EXIT_NODE}" = "true" ]; then
+    exit_node_status="enabled"
+  fi
+
+  cat <<EOF
+
+Router summary:
+- Login server: https://${VPN_DOMAIN}
+- Router hostname: ${ROUTER_HOSTNAME}
+- Advertised routes: ${ROUTER_ADVERTISE_ROUTES}
+- Exit node advertising: ${exit_node_status}
+- Next step: approve subnet route in Headplane / Headscale GUI if required
+- Verify with: systemctl status tailscaled --no-pager
+- Verify with: tailscale status
+EOF
+}
+
 install_control() {
   install_base_packages
   install_docker
@@ -367,6 +387,7 @@ install_router() {
   configure_router_host
   connect_router
   log "Subnet router on host is ready"
+  print_router_summary
 }
 
 main() {
