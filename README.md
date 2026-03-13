@@ -37,17 +37,17 @@ Dalsi uzitecne promenne:
 Control server:
 
 ```bash
-git clone git@github.com:pokys/Headscale-stack-bootstrap.git
+git clone https://github.com/pokys/Headscale-stack-bootstrap.git
 cd Headscale-stack-bootstrap
 cp env.example env
 nano env
-sudo ./install.sh control
+./install.sh control
 ```
 
 Subnet router na hostu:
 
 ```bash
-sudo ./install.sh router
+./install.sh router
 ```
 
 Pokud neni vyplnene `TAILSCALE_AUTH_KEY`, skript po instalaci routeru vypise presny `tailscale up` prikaz pro rucni pripojeni.
@@ -111,13 +111,13 @@ Pouzij ho hlavne kdyz:
 1. Priprav cisty Debian 13 server pro control node.
 2. Nastav DNS zaznam `VPN_DOMAIN` na verejnou IP control serveru.
 3. Naklonuj repo, vytvor `env` a vypln realne hodnoty.
-4. Spust `sudo ./install.sh control`.
+4. Spust `./install.sh control`.
 5. Pockej, az dobehnou kontejnery a zkontroluj `docker ps`.
 6. Otevri `https://VPN_DOMAIN/admin`.
 7. Zkontroluj soubory `/root/headscale_api_key.txt`, `/root/headscale_auth_key.txt` a `/root/headscale-bootstrap.txt`.
 8. Priprav druhy cisty Debian 13 server pro subnet router.
 9. Zkopiruj na nej stejny `env`, pripadne uprav `ROUTER_HOSTNAME` a `ROUTER_ADVERTISE_ROUTES`.
-10. Spust `sudo ./install.sh router`.
+10. Spust `./install.sh router`.
 11. Pokud nebyl vyplnen `TAILSCALE_AUTH_KEY`, spust vypsany `tailscale up` prikaz rucne.
 12. Ve Headscale schval subnet routes, pokud nebude povoleni automaticke.
 
