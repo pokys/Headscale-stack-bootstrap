@@ -1,9 +1,9 @@
 {
- "acls": [
-  {
-   "action": "accept",
-   "src": ["*"],
-   "dst": ["*:*"]
-  }
- ]
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["*"],
+      "dst": ["*:*"]
+    }
+  ]
 }
