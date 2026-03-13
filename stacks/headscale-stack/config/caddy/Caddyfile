@@ -1,5 +1,15 @@
-vpn.example.com {
+# veřejná doména VPN serveru
+# příklad:
+# vpn.corp.cz
 
- reverse_proxy headplane:3000
+vpn.corp.cz {
 
+    # Headscale web UI
+    reverse_proxy /admin* headplane:3000
+
+    # Headscale API
+    reverse_proxy headscale:8080
+
+    # email pro Let's Encrypt certifikát
+    tls myemail+letsencrypt@example.com
 }
