@@ -15,6 +15,8 @@ services:
     image: ghcr.io/tale/headplane:latest
     container_name: headplane
     restart: unless-stopped
+    env_file:
+      - .env
     volumes:
       - ./config/headplane:/etc/headplane
     depends_on:

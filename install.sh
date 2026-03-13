@@ -1,127 +1,314 @@
 #!/usr/bin/env bash
 
-set -e
+set -Eeuo pipefail
 
-ROLE=$1
+ROLE="${1:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/env}"
+STACK_SRC_DIR="${SCRIPT_DIR}/stacks/headscale-stack"
+STACK_DST_DIR="/opt/stacks/headscale-stack"
+DOCKGE_DIR="/opt/dockge"
+STACK_ENV_FILE="${STACK_DST_DIR}/.env"
 
-if [ -z "$ROLE" ]; then
- echo "Usage: install.sh [control|router]"
- exit 1
-fi
+log() {
+  printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"
+}
 
-source ./env
+usage() {
+  echo "Usage: sudo ./install.sh [control|router]"
+}
 
-apt update
-apt install -y curl ca-certificates gnupg lsb-release ethtool
+require_root() {
+  if [ "${EUID}" -ne 0 ]; then
+    echo "Run this script as root."
+    exit 1
+  fi
+}
 
-if ! command -v docker >/dev/null; then
+load_env() {
+  if [ ! -f "${ENV_FILE}" ]; then
+    echo "Missing env file: ${ENV_FILE}"
+    echo "Create it first: cp env.example env"
+    exit 1
+  fi
 
-install -m 0755 -d /etc/apt/keyrings
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
 
-curl -fsSL https://download.docker.com/linux/debian/gpg \
-| gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  : "${VPN_DOMAIN:?Missing VPN_DOMAIN in ${ENV_FILE}}"
 
-echo \
-"deb [arch=$(dpkg --print-architecture) \
+  LOCAL_SUBNET="${LOCAL_SUBNET:-${LAN_SUBNET:-}}"
+  AD_DNS_SERVER="${AD_DNS_SERVER:-${DNS_SERVER:-}}"
+  AD_DOMAIN="${AD_DOMAIN:-${SEARCH_DOMAIN:-}}"
+  TAILNET_DOMAIN="${TAILNET_DOMAIN:-tailnet.internal}"
+  ACME_EMAIL="${ACME_EMAIL:-myemail+letsencrypt@example.com}"
+  HEADSCALE_USER="${HEADSCALE_USER:-company}"
+  DOCKGE_PORT="${DOCKGE_PORT:-5001}"
+  TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY:-}"
+  ROUTER_HOSTNAME="${ROUTER_HOSTNAME:-$(hostname -s)}"
+  ROUTER_ADVERTISE_ROUTES="${ROUTER_ADVERTISE_ROUTES:-${LOCAL_SUBNET}}"
+
+  : "${LOCAL_SUBNET:?Missing LOCAL_SUBNET or LAN_SUBNET in ${ENV_FILE}}"
+  : "${AD_DNS_SERVER:?Missing AD_DNS_SERVER or DNS_SERVER in ${ENV_FILE}}"
+  : "${AD_DOMAIN:?Missing AD_DOMAIN or SEARCH_DOMAIN in ${ENV_FILE}}"
+}
+
+install_base_packages() {
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y curl ca-certificates gnupg lsb-release ethtool openssl
+}
+
+install_docker() {
+  if command -v docker >/dev/null 2>&1; then
+    systemctl enable docker
+    systemctl start docker
+    return
+  fi
+
+  install -m 0755 -d /etc/apt/keyrings
+
+  curl -fsSL https://download.docker.com/linux/debian/gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+  echo \
+    "deb [arch=$(dpkg --print-architecture) \
 signed-by=/etc/apt/keyrings/docker.gpg] \
 https://download.docker.com/linux/debian \
 $(lsb_release -cs) stable" \
-| tee /etc/apt/sources.list.d/docker.list
+    > /etc/apt/sources.list.d/docker.list
 
-apt update
+  apt-get update
+  apt-get install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-compose-plugin
 
-apt install -y \
-docker-ce \
-docker-ce-cli \
-containerd.io \
-docker-compose-plugin
+  systemctl enable docker
+  systemctl start docker
+}
 
-systemctl enable docker
-systemctl start docker
+replace_yaml_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  sed -i "s|^${key}: .*|${key}: ${value}|" "${file}"
+}
 
-fi
+replace_indented_value() {
+  local file="$1"
+  local indent="$2"
+  local value="$3"
+  sed -i "s|^${indent}- .*|${indent}- ${value}|" "${file}"
+}
 
-if [ "$ROLE" = "control" ]; then
+configure_control_stack() {
+  local headscale_cfg="${STACK_DST_DIR}/config/headscale/config.yaml"
+  local headplane_cfg="${STACK_DST_DIR}/config/headplane/config.yaml"
+  local caddy_cfg="${STACK_DST_DIR}/config/caddy/Caddyfile"
+  local cookie_secret
 
-echo "Installing Dockge"
+  cookie_secret="$(openssl rand -hex 16)"
 
-mkdir -p /opt/dockge
+  replace_yaml_value "${headscale_cfg}" "server_url" "https://${VPN_DOMAIN}"
+  replace_yaml_value "${headscale_cfg}" "  base_domain" "${TAILNET_DOMAIN}"
+  replace_indented_value "${headscale_cfg}" "      " "${AD_DNS_SERVER}"
+  replace_indented_value "${headscale_cfg}" "    " "${AD_DOMAIN}"
 
-cat <<EOF > /opt/dockge/compose.yaml
+  replace_yaml_value "${headplane_cfg}" "  cookie_secret" "${cookie_secret}"
+
+  sed -i "s|^vpn\.corp\.cz {|${VPN_DOMAIN} {|" "${caddy_cfg}"
+  sed -i "s|^    tls .*|    tls ${ACME_EMAIL}|" "${caddy_cfg}"
+}
+
+write_stack_env() {
+  cat > "${STACK_ENV_FILE}" <<EOF
+ROOT_API_KEY=
+EOF
+}
+
+install_dockge() {
+  mkdir -p "${DOCKGE_DIR}/data"
+
+  cat > "${DOCKGE_DIR}/compose.yaml" <<EOF
 services:
  dockge:
   image: louislam/dockge
   restart: unless-stopped
   ports:
-   - 5001:5001
+   - ${DOCKGE_PORT}:5001
   volumes:
    - /var/run/docker.sock:/var/run/docker.sock
    - ./data:/app/data
    - /opt/stacks:/opt/stacks
 EOF
 
-cd /opt/dockge
-docker compose up -d
+  cd "${DOCKGE_DIR}"
+  docker compose up -d
+}
 
-mkdir -p /opt/stacks
-cp -r stacks/headscale-stack /opt/stacks/
+deploy_control_stack() {
+  mkdir -p /opt/stacks
+  mkdir -p "${STACK_DST_DIR}"
+  cp -r "${STACK_SRC_DIR}/." "${STACK_DST_DIR}/"
 
-cd /opt/stacks/headscale-stack
+  mkdir -p "${STACK_DST_DIR}/data/headscale"
+  mkdir -p "${STACK_DST_DIR}/data/caddy"
 
-mkdir -p data/headscale
+  configure_control_stack
+  write_stack_env
 
-docker run --rm \
--v $(pwd)/data/headscale:/var/lib/headscale \
-headscale/headscale generate private-key \
-> data/headscale/noise_private.key
+  if [ ! -s "${STACK_DST_DIR}/data/headscale/noise_private.key" ]; then
+    docker run --rm \
+      -v "${STACK_DST_DIR}/data/headscale:/var/lib/headscale" \
+      headscale/headscale generate private-key \
+      > "${STACK_DST_DIR}/data/headscale/noise_private.key"
+  fi
 
-docker compose up -d
+  cd "${STACK_DST_DIR}"
+  docker compose up -d
+}
 
-sleep 10
+wait_for_headscale() {
+  local retries=20
 
-docker exec headscale headscale users create company || true
+  until docker exec headscale headscale users list >/dev/null 2>&1; do
+    retries=$((retries - 1))
+    if [ "${retries}" -le 0 ]; then
+      echo "Headscale did not become ready in time."
+      exit 1
+    fi
+    sleep 3
+  done
+}
 
-APIKEY=$(docker exec headscale headscale apikeys create | tail -n1)
+create_headscale_assets() {
+  local api_key
 
-echo $APIKEY > /root/headscale_api_key.txt
+  docker exec headscale headscale users create "${HEADSCALE_USER}" >/dev/null 2>&1 || true
 
-AUTHKEY=$(docker exec headscale \
-headscale preauthkeys create \
---user 1 \
---reusable \
---expiration 720h | tail -n1)
+  if [ ! -s /root/headscale_api_key.txt ]; then
+    docker exec headscale headscale apikeys create \
+      | awk 'NF { line = $0 } END { print line }' \
+      > /root/headscale_api_key.txt
+  fi
 
-echo $AUTHKEY > /root/headscale_auth_key.txt
+  api_key="$(tr -d '\r\n' < /root/headscale_api_key.txt)"
+  sed -i "s|^ROOT_API_KEY=.*|ROOT_API_KEY=${api_key}|" "${STACK_ENV_FILE}"
+  (
+    cd "${STACK_DST_DIR}"
+    docker compose up -d headplane
+  )
 
-echo "Headscale installed"
+  if [ ! -s /root/headscale_auth_key.txt ]; then
+    docker exec headscale \
+      headscale preauthkeys create \
+      --user "${HEADSCALE_USER}" \
+      --reusable \
+      --expiration 720h \
+      | awk 'NF { line = $0 } END { print line }' \
+      > /root/headscale_auth_key.txt
+  fi
+}
 
-fi
+write_control_summary() {
+  cat > /root/headscale-bootstrap.txt <<EOF
+VPN domain: ${VPN_DOMAIN}
+AD domain: ${AD_DOMAIN}
+AD DNS server: ${AD_DNS_SERVER}
+Local subnet: ${LOCAL_SUBNET}
+Headscale user: ${HEADSCALE_USER}
+Tailnet domain: ${TAILNET_DOMAIN}
+Dockge URL: http://$(hostname -I | awk '{print $1}'):${DOCKGE_PORT}
+Headplane URL: https://${VPN_DOMAIN}/admin
+Headscale API key: /root/headscale_api_key.txt
+Headscale auth key: /root/headscale_auth_key.txt
+EOF
+}
 
-if [ "$ROLE" = "router" ]; then
+install_control() {
+  install_base_packages
+  install_docker
+  install_dockge
+  deploy_control_stack
+  wait_for_headscale
+  create_headscale_assets
+  write_control_summary
+  log "Headscale control node is ready"
+}
 
-curl -fsSL https://tailscale.com/install.sh | sh
+install_tailscale() {
+  if ! command -v tailscale >/dev/null 2>&1; then
+    curl -fsSL https://tailscale.com/install.sh | sh
+  fi
 
-systemctl enable tailscaled
-systemctl start tailscaled
+  systemctl enable tailscaled
+  systemctl start tailscaled
+}
 
-cat <<EOF >> /etc/sysctl.conf
-
+configure_router_host() {
+  cat > /etc/sysctl.d/99-headscale-router.conf <<EOF
 net.ipv4.ip_forward=1
 net.ipv6.conf.all.forwarding=1
-
 net.core.rmem_max=2500000
 net.core.wmem_max=2500000
-
 EOF
 
-sysctl -p
+  sysctl --system >/dev/null
 
-IFACE=$(ip route get 1 | awk '{print $5;exit}')
+  IFACE="$(ip route get 1 | awk '{print $5;exit}')"
+  if [ -n "${IFACE}" ]; then
+    ethtool -K "${IFACE}" rx-udp-gro-forwarding on || true
+    ethtool -K "${IFACE}" rx-gro-list off || true
+    ethtool -K "${IFACE}" tx-udp-segmentation on || true
+  fi
+}
 
-ethtool -K $IFACE rx-udp-gro-forwarding on || true
-ethtool -K $IFACE rx-gro-list off || true
-ethtool -K $IFACE tx-udp-segmentation on || true
+connect_router() {
+  if [ -z "${TAILSCALE_AUTH_KEY}" ]; then
+    log "Subnet router is installed on host. Connect it manually with:"
+    echo "tailscale up --login-server https://${VPN_DOMAIN} --auth-key <AUTH_KEY> --advertise-routes ${ROUTER_ADVERTISE_ROUTES} --hostname ${ROUTER_HOSTNAME} --accept-dns=false"
+    return
+  fi
 
-echo "Router ready"
+  tailscale up \
+    --login-server "https://${VPN_DOMAIN}" \
+    --auth-key "${TAILSCALE_AUTH_KEY}" \
+    --advertise-routes "${ROUTER_ADVERTISE_ROUTES}" \
+    --hostname "${ROUTER_HOSTNAME}" \
+    --accept-dns=false
+}
 
-fi
+install_router() {
+  install_base_packages
+  install_tailscale
+  configure_router_host
+  connect_router
+  log "Subnet router on host is ready"
+}
+
+main() {
+  if [ -z "${ROLE}" ]; then
+    usage
+    exit 1
+  fi
+
+  require_root
+  load_env
+
+  case "${ROLE}" in
+    control)
+      install_control
+      ;;
+    router)
+      install_router
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
