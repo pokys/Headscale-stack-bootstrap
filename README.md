@@ -26,6 +26,7 @@ Dalsi uzitecne promenne:
 - `TAILSCALE_AUTH_KEY`
 - `ROUTER_HOSTNAME`
 - `ROUTER_ADVERTISE_ROUTES`
+- `ROUTER_ADVERTISE_EXIT_NODE`
 
 ## Pouziti
 
@@ -56,6 +57,15 @@ Pokud neni vyplnene `TAILSCALE_AUTH_KEY`, skript po instalaci routeru vypise pre
 
 `public` pouzij jen pokud kontejner `headplane` spolehlive dosahne na `https://VPN_DOMAIN`.
 
+`ROUTER_ADVERTISE_EXIT_NODE` ridi, jestli se router nabidne i jako exit node:
+
+- `false`
+  bezpecny default, router inzeruje jen `ROUTER_ADVERTISE_ROUTES`
+- `true`
+  router inzeruje subnet route a zaroven `--advertise-exit-node`
+
+I pri `true` zustava pouziti exit node pod kontrolou klienta a podle GUI schvaleni.
+
 Ukazkovy rucni prikaz pro router:
 
 ```bash
@@ -63,6 +73,7 @@ tailscale up \
   --login-server https://VPN_DOMAIN \
   --auth-key AUTH_KEY \
   --advertise-routes ROUTER_ADVERTISE_ROUTES \
+  --advertise-exit-node \
   --hostname ROUTER_HOSTNAME \
   --accept-dns=false
 ```
@@ -72,6 +83,8 @@ Pouzij ho hlavne kdyz:
 - je problem s DNS behem `./install.sh router`
 - chces router prihlasit rucne az po oprave site
 - potrebujes znovu spustit `tailscale up` bez celeho bootstrapu
+
+Pokud nechces exit node, vynech `--advertise-exit-node`.
 
 Ukazkovy rucni prikaz pro pridani bezneho PC:
 

@@ -60,6 +60,7 @@ load_env() {
   TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY:-}"
   ROUTER_HOSTNAME="${ROUTER_HOSTNAME:-$(hostname -s)}"
   ROUTER_ADVERTISE_ROUTES="${ROUTER_ADVERTISE_ROUTES:-${LOCAL_SUBNET}}"
+  ROUTER_ADVERTISE_EXIT_NODE="${ROUTER_ADVERTISE_EXIT_NODE:-false}"
 
   : "${LOCAL_SUBNET:?Missing LOCAL_SUBNET or LAN_SUBNET in ${ENV_FILE}}"
   : "${AD_DNS_SERVER:?Missing AD_DNS_SERVER or DNS_SERVER in ${ENV_FILE}}"
@@ -323,18 +324,34 @@ EOF
 }
 
 connect_router() {
+  local exit_node_flag=""
+
+  if [ "${ROUTER_ADVERTISE_EXIT_NODE}" = "true" ]; then
+    exit_node_flag=" --advertise-exit-node"
+  fi
+
   if [ -z "${TAILSCALE_AUTH_KEY}" ]; then
     log "Subnet router is installed on host. Connect it manually with:"
-    echo "tailscale up --login-server https://${VPN_DOMAIN} --auth-key <AUTH_KEY> --advertise-routes ${ROUTER_ADVERTISE_ROUTES} --hostname ${ROUTER_HOSTNAME} --accept-dns=false"
+    echo "tailscale up --login-server https://${VPN_DOMAIN} --auth-key <AUTH_KEY> --advertise-routes ${ROUTER_ADVERTISE_ROUTES}${exit_node_flag} --hostname ${ROUTER_HOSTNAME} --accept-dns=false"
     return
   fi
 
-  tailscale up \
-    --login-server "https://${VPN_DOMAIN}" \
-    --auth-key "${TAILSCALE_AUTH_KEY}" \
-    --advertise-routes "${ROUTER_ADVERTISE_ROUTES}" \
-    --hostname "${ROUTER_HOSTNAME}" \
-    --accept-dns=false
+  if [ "${ROUTER_ADVERTISE_EXIT_NODE}" = "true" ]; then
+    tailscale up \
+      --login-server "https://${VPN_DOMAIN}" \
+      --auth-key "${TAILSCALE_AUTH_KEY}" \
+      --advertise-routes "${ROUTER_ADVERTISE_ROUTES}" \
+      --advertise-exit-node \
+      --hostname "${ROUTER_HOSTNAME}" \
+      --accept-dns=false
+  else
+    tailscale up \
+      --login-server "https://${VPN_DOMAIN}" \
+      --auth-key "${TAILSCALE_AUTH_KEY}" \
+      --advertise-routes "${ROUTER_ADVERTISE_ROUTES}" \
+      --hostname "${ROUTER_HOSTNAME}" \
+      --accept-dns=false
+  fi
 }
 
 install_router() {
