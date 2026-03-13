@@ -1,6 +1,6 @@
 services:
   headscale:
-    image: headscale/headscale:latest
+    image: ${HEADSCALE_IMAGE}
     container_name: headscale
     restart: unless-stopped
     command: serve
@@ -12,7 +12,7 @@ services:
     networks:
       - vpn
   headplane:
-    image: ghcr.io/tale/headplane:latest
+    image: ${HEADPLANE_IMAGE}
     container_name: headplane
     restart: unless-stopped
     env_file:
@@ -25,7 +25,7 @@ services:
       - vpn
 
   caddy:
-    image: caddy:latest
+    image: ${CADDY_IMAGE}
     container_name: caddy
     restart: unless-stopped
     ports:

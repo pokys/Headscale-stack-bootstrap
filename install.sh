@@ -56,6 +56,10 @@ load_env() {
   ACME_EMAIL="${ACME_EMAIL:-myemail+letsencrypt@example.com}"
   HEADSCALE_USER="${HEADSCALE_USER:-company}"
   DOCKGE_PORT="${DOCKGE_PORT:-5001}"
+  HEADSCALE_IMAGE="${HEADSCALE_IMAGE:-headscale/headscale:v0.28.0}"
+  HEADPLANE_IMAGE="${HEADPLANE_IMAGE:-ghcr.io/tale/headplane:latest}"
+  CADDY_IMAGE="${CADDY_IMAGE:-caddy:2.10.2}"
+  DOCKGE_IMAGE="${DOCKGE_IMAGE:-louislam/dockge:1}"
   HEADPLANE_HEADSCALE_URL_MODE="${HEADPLANE_HEADSCALE_URL_MODE:-internal}"
   TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY:-}"
   ROUTER_HOSTNAME="${ROUTER_HOSTNAME:-$(hostname -s)}"
@@ -162,6 +166,9 @@ configure_control_stack() {
 write_stack_env() {
   cat > "${STACK_ENV_FILE}" <<EOF
 ROOT_API_KEY=
+HEADSCALE_IMAGE=${HEADSCALE_IMAGE}
+HEADPLANE_IMAGE=${HEADPLANE_IMAGE}
+CADDY_IMAGE=${CADDY_IMAGE}
 EOF
 }
 
@@ -171,7 +178,7 @@ install_dockge() {
   cat > "${DOCKGE_DIR}/compose.yaml" <<EOF
 services:
  dockge:
-  image: louislam/dockge
+  image: ${DOCKGE_IMAGE}
   restart: unless-stopped
   ports:
    - ${DOCKGE_PORT}:5001
@@ -199,7 +206,7 @@ deploy_control_stack() {
   if [ ! -s "${STACK_DST_DIR}/data/headscale/noise_private.key" ]; then
     docker run --rm \
       -v "${STACK_DST_DIR}/data/headscale:/var/lib/headscale" \
-      headscale/headscale generate private-key \
+      "${HEADSCALE_IMAGE}" generate private-key \
       > "${STACK_DST_DIR}/data/headscale/noise_private.key"
   fi
 
