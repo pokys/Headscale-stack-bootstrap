@@ -1,37 +1,41 @@
 services:
+  headscale:
+    image: headscale/headscale:latest
+    container_name: headscale
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - ./config/headscale:/etc/headscale
+      - ./data/headscale:/var/lib/headscale
+    ports:
+      - 8080:8080
+    networks:
+      - vpn
+  headplane:
+    image: ghcr.io/tale/headplane:latest
+    container_name: headplane
+    restart: unless-stopped
+    volumes:
+      - ./config/headplane:/etc/headplane
+    depends_on:
+      - headscale
+    networks:
+      - vpn
 
- headscale:
-  image: headscale/headscale:latest
-  container_name: headscale
-  restart: unless-stopped
-  command: serve
-  volumes:
-   - ./config/headscale:/etc/headscale
-   - ./data/headscale:/var/lib/headscale
-  networks:
-   - vpn
-
- headplane:
-  image: ghcr.io/tale/headplane:latest
-  container_name: headplane
-  restart: unless-stopped
-  volumes:
-   - ./config/headplane:/etc/headplane
-  networks:
-   - vpn
-
- caddy:
-  image: caddy:latest
-  container_name: caddy
-  restart: unless-stopped
-  ports:
-   - "80:80"
-   - "443:443"
-  volumes:
-   - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile
-   - ./data/caddy:/data
-  networks:
-   - vpn
-
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./data/caddy:/data
+    depends_on:
+      - headscale
+      - headplane
+    networks:
+      - vpn
 networks:
- vpn:
+  vpn: null
