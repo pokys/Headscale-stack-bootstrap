@@ -46,6 +46,23 @@ sudo ./install.sh router
 
 Pokud neni vyplnene `TAILSCALE_AUTH_KEY`, skript po instalaci routeru vypise presny `tailscale up` prikaz pro rucni pripojeni.
 
+Ukazkovy rucni prikaz pro router:
+
+```bash
+tailscale up \
+  --login-server https://VPN_DOMAIN \
+  --auth-key AUTH_KEY \
+  --advertise-routes ROUTER_ADVERTISE_ROUTES \
+  --hostname ROUTER_HOSTNAME \
+  --accept-dns=false
+```
+
+Pouzij ho hlavne kdyz:
+
+- je problem s DNS behem `./install.sh router`
+- chces router prihlasit rucne az po oprave site
+- potrebujes znovu spustit `tailscale up` bez celeho bootstrapu
+
 ## Doporuceny postup test deploye
 
 1. Priprav cisty Debian 13 server pro control node.
