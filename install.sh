@@ -56,6 +56,7 @@ load_env() {
   ACME_EMAIL="${ACME_EMAIL:-myemail+letsencrypt@example.com}"
   HEADSCALE_USER="${HEADSCALE_USER:-company}"
   DOCKGE_PORT="${DOCKGE_PORT:-5001}"
+  HEADPLANE_HEADSCALE_URL_MODE="${HEADPLANE_HEADSCALE_URL_MODE:-internal}"
   TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY:-}"
   ROUTER_HOSTNAME="${ROUTER_HOSTNAME:-$(hostname -s)}"
   ROUTER_ADVERTISE_ROUTES="${ROUTER_ADVERTISE_ROUTES:-${LOCAL_SUBNET}}"
@@ -127,8 +128,23 @@ configure_control_stack() {
   local headplane_cfg="${STACK_DST_DIR}/config/headplane/config.yaml"
   local caddy_cfg="${STACK_DST_DIR}/config/caddy/Caddyfile"
   local cookie_secret
+  local headplane_headscale_url
 
   cookie_secret="$(openssl rand -hex 16)"
+  headplane_headscale_url="http://headscale:8080"
+
+  case "${HEADPLANE_HEADSCALE_URL_MODE}" in
+    internal)
+      ;;
+    public)
+      headplane_headscale_url="https://${VPN_DOMAIN}"
+      ;;
+    *)
+      echo "Invalid HEADPLANE_HEADSCALE_URL_MODE: ${HEADPLANE_HEADSCALE_URL_MODE}"
+      echo "Supported values: internal, public"
+      exit 1
+      ;;
+  esac
 
   replace_yaml_value "${headscale_cfg}" "server_url" "https://${VPN_DOMAIN}"
   replace_yaml_value "${headscale_cfg}" "  base_domain" "${TAILNET_DOMAIN}"
@@ -136,6 +152,7 @@ configure_control_stack() {
   replace_first_match "${headscale_cfg}" "^    - .*" "    - ${AD_DOMAIN}"
 
   replace_yaml_value "${headplane_cfg}" "  cookie_secret" "${cookie_secret}"
+  replace_yaml_value "${headplane_cfg}" "  url" "${headplane_headscale_url}"
 
   sed -i "s|^vpn\.corp\.cz {|${VPN_DOMAIN} {|" "${caddy_cfg}"
   sed -i "s|^    tls .*|    tls ${ACME_EMAIL}|" "${caddy_cfg}"
