@@ -1,4 +1,4 @@
-server_url: https://vpn.example.com
+server_url: https://vpn.corp.cz
 listen_addr: 0.0.0.0:8080
 
 noise:
@@ -15,16 +15,12 @@ prefixes:
 dns:
   magic_dns: true
   override_local_dns: true
-
   base_domain: tailnet.local
-
   nameservers:
     global:
       - 192.168.1.1
-
   search_domains:
     - corp.local
-
 derp:
   urls:
     - https://controlplane.tailscale.com/derpmap/default
